@@ -7,7 +7,10 @@
   <style>
     :root{--bg:#0b1220;--panel:#0f1a2e;--text:#e6edf7;--muted:#a9b7d0;--border:rgba(255,255,255,.12);--chip:rgba(122,162,255,.12);--shadow:0 10px 30px rgba(0,0,0,.35)}
     *{box-sizing:border-box}
-    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,"Noto Sans","Helvetica Neue",sans-serif;background:radial-gradient(1200px 800px at 20% 0%,rgba(122,162,255,.18),transparent 55%),radial-gradient(1000px 700px at 100% 20%,rgba(56,189,248,.12),transparent 60%),var(--bg);color:var(--text)}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,"Noto Sans","Helvetica Neue",sans-serif;
+      background:radial-gradient(1200px 800px at 20% 0%,rgba(122,162,255,.18),transparent 55%),
+                 radial-gradient(1000px 700px at 100% 20%,rgba(56,189,248,.12),transparent 60%),
+                 var(--bg);color:var(--text)}
     header{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);background:rgba(11,18,32,.75);border-bottom:1px solid var(--border)}
     .wrap{max-width:1200px;margin:0 auto;padding:18px}
     h1{margin:0;font-size:20px;letter-spacing:.2px}
@@ -16,16 +19,26 @@
     .tabs{display:flex;gap:8px;flex-wrap:wrap}
     .tab{border:1px solid var(--border);background:rgba(15,26,46,.55);color:var(--text);padding:8px 10px;border-radius:12px;cursor:pointer;font-size:13px}
     .tab.active{border-color:rgba(122,162,255,.7);background:rgba(122,162,255,.18)}
-    .controls{display:flex;gap:10px;flex:1;justify-content:flex-end;flex-wrap:wrap}
-    .search{flex:1;min-width:260px;max-width:520px;display:flex;align-items:center;gap:8px;background:rgba(15,26,46,.55);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
+    .controls{display:flex;gap:10px;flex:1;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+    .search{flex:1;min-width:220px;max-width:420px;display:flex;align-items:center;gap:8px;background:rgba(15,26,46,.55);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
     .search input{width:100%;background:transparent;border:none;outline:none;color:var(--text);font-size:13px}
+    .select{
+      min-width:220px;
+      background:rgba(15,26,46,.55);
+      border:1px solid var(--border);
+      color:var(--text);
+      border-radius:12px;
+      padding:8px 10px;
+      font-size:13px;
+      outline:none;
+    }
     .btn{border:1px solid var(--border);background:rgba(15,26,46,.55);color:var(--text);padding:8px 10px;border-radius:12px;cursor:pointer;font-size:13px;box-shadow:var(--shadow)}
     .btn:hover{border-color:rgba(56,189,248,.7)}
     main{padding:18px}
     .panel{max-width:1200px;margin:0 auto;background:rgba(15,26,46,.55);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
     .meta{display:flex;gap:10px;flex-wrap:wrap;padding:14px 14px 0 14px;color:var(--muted);font-size:12px}
     .chip{background:var(--chip);border:1px solid rgba(122,162,255,.25);padding:6px 10px;border-radius:999px}
-    .table-wrap{overflow:auto;max-height:calc(100vh - 210px)}
+    .table-wrap{overflow:auto;max-height:calc(100vh - 230px)}
     table{width:100%;border-collapse:collapse;min-width:900px}
     thead th{position:sticky;top:0;z-index:10;background:rgba(11,18,32,.9);border-bottom:1px solid var(--border);text-align:left;padding:10px 12px;font-size:12px;color:#d9e6ff;cursor:pointer;user-select:none;white-space:nowrap}
     tbody td{border-bottom:1px solid rgba(255,255,255,.08);padding:10px 12px;font-size:12.5px;color:var(--text);vertical-align:top}
@@ -43,10 +56,15 @@
     <div class="row">
       <div class="tabs" id="tabs"></div>
       <div class="controls">
+        <select class="select" id="dept" title="Filter by Department">
+          <option value="">All Departments</option>
+        </select>
+
         <div class="search" title="Search within the active sheet">
           <span aria-hidden="true">🔎</span>
           <input id="q" placeholder="Search… (matches any column)" />
         </div>
+
         <button class="btn" id="download">⬇️ Download CSV</button>
         <button class="btn" id="clear">✖ Clear</button>
       </div>
@@ -70,10 +88,17 @@
 
 <script>
   let DATA = null;
-  const state = { sheet: null, q: '', sort: { col: null, dir: 'asc' } };
+
+  const state = {
+    sheet: null,
+    q: '',
+    dept: '',
+    sort: { col: null, dir: 'asc' }
+  };
 
   const elTabs = document.getElementById('tabs');
   const elQ = document.getElementById('q');
+  const elDept = document.getElementById('dept');
   const elHead = document.getElementById('thead');
   const elBody = document.getElementById('tbody');
   const elMeta = document.getElementById('meta');
@@ -88,18 +113,86 @@
       const b=document.createElement('button');
       b.className='tab' + (name===state.sheet?' active':'');
       b.textContent=name;
-      b.onclick=()=>{ state.sheet=name; state.sort={col:null,dir:'asc'}; elQ.value=''; state.q=''; render(); };
+      b.onclick=()=>{
+        state.sheet=name;
+        state.sort={col:null,dir:'asc'};
+        state.q='';
+        state.dept='';
+        elQ.value='';
+        rebuildDepartmentDropdown();
+        render();
+      };
       elTabs.appendChild(b);
     });
   }
 
+  function rebuildDepartmentDropdown(){
+    // Reset dropdown
+    elDept.innerHTML = '';
+    const optAll = document.createElement('option');
+    optAll.value = '';
+    optAll.textContent = 'All Departments';
+    elDept.appendChild(optAll);
+
+    const sheet = DATA[state.sheet];
+    const cols = sheet.columns || [];
+    const deptIdx = cols.findIndex(c => normalize(c) === 'department');
+
+    // If no Department column exists, disable dropdown gracefully
+    if (deptIdx === -1){
+      elDept.disabled = true;
+      elDept.title = 'No Department column found in this sheet';
+      return;
+    }
+
+    elDept.disabled = false;
+    elDept.title = 'Filter by Department';
+
+    // Unique department values (non-empty)
+    const set = new Set();
+    (sheet.rows || []).forEach(r=>{
+      const v = String(r[deptIdx] ?? '').trim();
+      if (v) set.add(v);
+    });
+
+    Array.from(set).sort((a,b)=>a.localeCompare(b)).forEach(v=>{
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = v;
+      elDept.appendChild(o);
+    });
+
+    // Restore selection (if any)
+    elDept.value = state.dept || '';
+  }
+
   function getFilteredRows(){
-    const rows = DATA[state.sheet].rows;
+    const sheet = DATA[state.sheet];
+    const cols = sheet.columns;
+    const rows = sheet.rows;
+
     const q = normalize(state.q).trim();
+
+    const deptIdx = cols.findIndex(c => normalize(c) === 'department');
+    const deptFilter = String(state.dept ?? '').trim();
+
     let out = rows;
-    if(q){ out = rows.filter(r=> r.some(cell=> normalize(cell).includes(q))); }
-    if(state.sort.col!==null){
-      const idx=state.sort.col; const dir = state.sort.dir==='asc'?1:-1;
+
+    // Department filter
+    if (deptFilter && deptIdx !== -1){
+      out = out.filter(r => String(r[deptIdx] ?? '').trim() === deptFilter);
+    }
+
+    // Search filter (any column)
+    if (q){
+      out = out.filter(r => r.some(cell => normalize(cell).includes(q)));
+    }
+
+    // Sorting
+    if (state.sort.col !== null){
+      const idx=state.sort.col;
+      const dir = state.sort.dir==='asc'?1:-1;
+
       out=[...out].sort((a,b)=>{
         const va=a[idx], vb=b[idx];
         const na=Number(String(va).replace(/,/g,''));
@@ -109,39 +202,68 @@
         return String(va).localeCompare(String(vb))*dir;
       });
     }
+
     return out;
   }
 
   function render(){
     makeTabs();
+
     const sheet = DATA[state.sheet];
     const cols = sheet.columns;
     const rows = getFilteredRows();
 
+    // Meta chips
     elMeta.innerHTML='';
     const chip = (t)=>{ const d=document.createElement('div'); d.className='chip'; d.textContent=t; return d; };
-    elMeta.append(chip('Sheet: '+state.sheet), chip('Columns: '+cols.length), chip('Rows: '+rows.length), chip(state.q?('Filter: “'+state.q+'”'):'Filter: (none)'));
+    elMeta.append(
+      chip('Sheet: '+state.sheet),
+      chip('Columns: '+cols.length),
+      chip('Rows: '+rows.length),
+      chip(state.dept ? ('Department: '+state.dept) : 'Department: (all)'),
+      chip(state.q ? ('Search: “'+state.q+'”') : 'Search: (none)')
+    );
 
+    // Header
     elHead.innerHTML='';
     cols.forEach((c,idx)=>{
       const th=document.createElement('th');
       const active=state.sort.col===idx;
       const arrow=active?(state.sort.dir==='asc'?' ▲':' ▼'):'';
       th.textContent=c+arrow;
-      th.onclick=()=>{ if(state.sort.col===idx){ state.sort.dir=state.sort.dir==='asc'?'desc':'asc'; } else { state.sort.col=idx; state.sort.dir='asc'; } render(); };
+      th.onclick=()=>{
+        if(state.sort.col===idx){ state.sort.dir=state.sort.dir==='asc'?'desc':'asc'; }
+        else { state.sort.col=idx; state.sort.dir='asc'; }
+        render();
+      };
       elHead.appendChild(th);
     });
 
+    // Body
     elBody.innerHTML='';
     rows.forEach(r=>{
       const tr=document.createElement('tr');
-      r.forEach(cell=>{ const td=document.createElement('td'); td.textContent=String(cell); tr.appendChild(td); });
+      r.forEach(cell=>{
+        const td=document.createElement('td');
+        td.textContent=String(cell);
+        tr.appendChild(td);
+      });
       elBody.appendChild(tr);
     });
   }
 
+  // Events
   elQ.addEventListener('input', e=>{ state.q=e.target.value; render(); });
-  elClear.onclick=()=>{ elQ.value=''; state.q=''; state.sort={col:null,dir:'asc'}; render(); };
+  elDept.addEventListener('change', e=>{ state.dept=e.target.value; render(); });
+
+  elClear.onclick=()=>{
+    elQ.value='';
+    state.q='';
+    state.dept='';
+    elDept.value='';
+    state.sort={col:null,dir:'asc'};
+    render();
+  };
 
   function downloadCSV(){
     const columns = DATA[state.sheet].columns;
@@ -157,8 +279,22 @@
   }
   elDownload.onclick=downloadCSV;
 
+  // Load JSON
   fetch('./data.json')
     .then(r=>r.json())
-    .then(j=>{ DATA=j; state.sheet=Object.keys(DATA)[0]; render(); })
+    .then(j=>{
+      DATA=j;
+      state.sheet=Object.keys(DATA)[0];
+      rebuildDepartmentDropdown();
+      render();
+    })
     .catch(err=>{
-      document.body.innerHTML='<div style="padding:24px;color:#fff;font-family:system-ui">Failed to load data.json. Make sure index.html and data.json are in the same folder.\n<br><pre>'+String(err)+'</pre></
+      document.body.innerHTML=
+        '<div style="padding:24px;color:#fff;font-family:system-ui">' +
+        'Failed to load data.json. Make sure index.html and data.json are in the same folder.' +
+        '<br><pre>'+String(err)+'</pre></div>';
+    });
+</script>
+</body>
+</html>
+``
