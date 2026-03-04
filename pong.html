@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Pong – Custom Avatar Edition</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a14;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e0e8ff;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-size: 22px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #7ab8ff;
+      margin-bottom: 10px;
+      text-shadow: 0 0 20px rgba(122,184,255,0.6);
+    }
+
+    #score-board {
+      display: flex;
+      gap: 60px;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: 4px;
+    }
+
+    .score-left  { color: #7ab8ff; text-shadow: 0 0 18px rgba(122,184,255,.8); }
+    .score-right { color: #ff7a7a; text-shadow: 0 0 18px rgba(255,122,122,.8); }
+    .score-sep   { color: #444; font-size: 36px; }
+
+    #canvas-wrap {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(122,184,255,.25), 0 0 0 2px rgba(122,184,255,.18);
+    }
+
+    canvas { display: block; background: #080812; }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(8,8,18,.82);
+      backdrop-filter: blur(4px);
+      gap: 18px;
+    }
+
+    #overlay h2 {
+      font-size: 28px;
+      letter-spacing: 2px;
+      color: #7ab8ff;
+      text-shadow: 0 0 24px rgba(122,184,255,.8);
+    }
+
+    #overlay p {
+      font-size: 14px;
+      color: #8899bb;
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    .btn-group { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+    button {
+      padding: 11px 26px;
+      border-radius: 10px;
+      border: 1px solid rgba(122,184,255,.4);
+      background: rgba(122,184,255,.1);
+      color: #e0e8ff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background .18s, box-shadow .18s;
+    }
+    button:hover {
+      background: rgba(122,184,255,.22);
+      box-shadow: 0 0 16px rgba(122,184,255,.3);
+    }
+    button.primary {
+      border-color: #7ab8ff;
+      background: rgba(122,184,255,.22);
+    }
+
+    #img-upload-label {
+      display: inline-block;
+      padding: 11px 26px;
+      border-radius: 10px;
+      border: 1px dashed rgba(122,184,255,.5);
+      background: rgba(122,184,255,.06);
+      color: #8ab8e0;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background .18s;
+    }
+    #img-upload-label:hover { background: rgba(122,184,255,.14); }
+    #img-upload { display: none; }
+
+    #img-preview-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    #img-preview {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(122,184,255,.5);
+      display: none;
+    }
+    #img-preview.loaded { display: block; }
+    #img-label-text { font-size: 12px; color: #6677aa; }
+
+    #controls-hint {
+      font-size: 12px;
+      color: #445;
+      margin-top: 8px;
+      letter-spacing: .5px;
+    }
+
+    #win-message {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      background: rgba(8,8,18,.88);
+      backdrop-filter: blur(6px);
+    }
+    #win-message.show { display: flex; }
+    #win-message h2 { font-size: 36px; text-shadow: 0 0 30px currentColor; }
+    #win-message.you  h2 { color: #7ab8ff; }
+    #win-message.ai   h2 { color: #ff7a7a; }
+  </style>
+</head>
+<body>
+
+<h1>PONG</h1>
+<div id="score-board">
+  <span class="score-left"  id="sl">0</span>
+  <span class="score-sep">:</span>
+  <span class="score-right" id="sr">0</span>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="c" width="800" height="500"></canvas>
+
+  <!-- START OVERLAY -->
+  <div id="overlay">
+    <h2>PONG</h2>
+    <div id="img-preview-wrap">
+      <img id="img-preview" alt="Your avatar"/>
+      <span id="img-label-text">No avatar loaded yet</span>
+    </div>
+    <label id="img-upload-label">
+      📷 Load your picture
+      <input type="file" id="img-upload" accept="image/*"/>
+    </label>
+    <p>Your picture will appear on your paddle.<br/>Win 7 points to win the match!</p>
+    <div class="btn-group">
+      <button class="primary" id="btn-start">▶ Start Game</button>
+    </div>
+    <p id="controls-hint">W / S or ↑ / ↓ to move &nbsp;|&nbsp; Mouse also works</p>
+  </div>
+
+  <!-- WIN OVERLAY -->
+  <div id="win-message">
+    <h2 id="win-text"></h2>
+    <div class="btn-group">
+      <button id="btn-restart">▶ Play Again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ───────── canvas setup ───────── */
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+/* ───────── DOM refs ───────── */
+const overlay    = document.getElementById('overlay');
+const winMsg     = document.getElementById('win-message');
+const winText    = document.getElementById('win-text');
+const slEl       = document.getElementById('sl');
+const srEl       = document.getElementById('sr');
+const imgUpload  = document.getElementById('img-upload');
+const imgPreview = document.getElementById('img-preview');
+const imgLabel   = document.getElementById('img-label-text');
+
+/* ───────── avatar image ───────── */
+let avatarImg = null;
+
+imgUpload.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    avatarImg = img;
+    imgPreview.src = url;
+    imgPreview.classList.add('loaded');
+    imgLabel.textContent = 'Avatar ready!';
+  };
+  img.src = url;
+});
+
+/* ───────── game state ───────── */
+const PADDLE_W  = 14;
+const PADDLE_H  = 90;
+const BALL_R    = 10;
+const WIN_SCORE = 7;
+const AI_SPEED  = 4.2;
+
+let running = false;
+let scores  = { l: 0, r: 0 };
+let keys    = {};
+let mouseY  = H / 2;
+
+const paddle = {
+  l: { x: 20,        y: H/2 - PADDLE_H/2, dy: 0, speed: 7 },
+  r: { x: W-20-PADDLE_W, y: H/2 - PADDLE_H/2, dy: 0, speed: AI_SPEED }
+};
+
+let ball = makeBall();
+
+function makeBall() {
+  const angle = (Math.random() * 60 - 30) * Math.PI / 180;
+  const dir   = Math.random() < 0.5 ? 1 : -1;
+  return {
+    x:  W / 2,
+    y:  H / 2,
+    vx: Math.cos(angle) * 6 * dir,
+    vy: Math.sin(angle) * 6,
+    speed: 6,
+    trail: []
+  };
+}
+
+/* ───────── input ───────── */
+document.addEventListener('keydown', e => { keys[e.key] = true; });
+document.addEventListener('keyup',   e => { keys[e.key] = false; });
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseY = (e.clientY - rect.top) * (H / rect.height);
+});
+
+/* ───────── AI paddle ───────── */
+function updateAI() {
+  const p   = paddle.r;
+  const mid = p.y + PADDLE_H / 2;
+  const target = ball.y;
+  const diff   = target - mid;
+  const step   = Math.min(Math.abs(diff), AI_SPEED);
+  p.y += Math.sign(diff) * step;
+  p.y = Math.max(0, Math.min(H - PADDLE_H, p.y));
+}
+
+/* ───────── player paddle ───────── */
+function updatePlayer() {
+  const p = paddle.l;
+
+  // Keyboard
+  if (keys['w'] || keys['W'] || keys['ArrowUp'])   p.y -= p.speed;
+  if (keys['s'] || keys['S'] || keys['ArrowDown'])  p.y += p.speed;
+
+  // Mouse (follow mouse)
+  const mid = p.y + PADDLE_H / 2;
+  if (Math.abs(mouseY - mid) > 4) {
+    p.y += Math.sign(mouseY - mid) * Math.min(Math.abs(mouseY - mid), p.speed);
+  }
+
+  p.y = Math.max(0, Math.min(H - PADDLE_H, p.y));
+}
+
+/* ───────── ball physics ───────── */
+function updateBall() {
+  // trail
+  ball.trail.push({ x: ball.x, y: ball.y });
+  if (ball.trail.length > 12) ball.trail.shift();
+
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  // ceiling / floor
+  if (ball.y - BALL_R < 0)  { ball.y = BALL_R; ball.vy *= -1; }
+  if (ball.y + BALL_R > H)  { ball.y = H - BALL_R; ball.vy *= -1; }
+
+  // hit left paddle
+  const pl = paddle.l;
+  if (
+    ball.x - BALL_R < pl.x + PADDLE_W &&
+    ball.x - BALL_R > pl.x &&
+    ball.y > pl.y - BALL_R &&
+    ball.y < pl.y + PADDLE_H + BALL_R &&
+    ball.vx < 0
+  ) {
+    ball.vx *= -1.06;
+    const hit = (ball.y - (pl.y + PADDLE_H / 2)) / (PADDLE_H / 2);
+    ball.vy = hit * 7;
+    ball.x = pl.x + PADDLE_W + BALL_R;
+    capSpeed();
+  }
+
+  // hit right paddle
+  const pr = paddle.r;
+  if (
+    ball.x + BALL_R > pr.x &&
+    ball.x + BALL_R < pr.x + PADDLE_W &&
+    ball.y > pr.y - BALL_R &&
+    ball.y < pr.y + PADDLE_H + BALL_R &&
+    ball.vx > 0
+  ) {
+    ball.vx *= -1.06;
+    const hit = (ball.y - (pr.y + PADDLE_H / 2)) / (PADDLE_H / 2);
+    ball.vy = hit * 7;
+    ball.x = pr.x - BALL_R;
+    capSpeed();
+  }
+
+  // score
+  if (ball.x < 0) {
+    scores.r++;
+    srEl.textContent = scores.r;
+    if (scores.r >= WIN_SCORE) { endGame('ai'); return; }
+    resetBall(-1);
+  }
+  if (ball.x > W) {
+    scores.l++;
+    slEl.textContent = scores.l;
+    if (scores.l >= WIN_SCORE) { endGame('you'); return; }
+    resetBall(1);
+  }
+}
+
+function capSpeed() {
+  const spd = Math.hypot(ball.vx, ball.vy);
+  if (spd > 16) {
+    ball.vx = (ball.vx / spd) * 16;
+    ball.vy = (ball.vy / spd) * 16;
+  }
+}
+
+function resetBall(dir) {
+  ball = makeBall();
+  ball.vx = Math.abs(ball.vx) * dir;
+}
+
+/* ───────── drawing ───────── */
+function drawBackground() {
+  // centre dashed line
+  ctx.setLineDash([12, 14]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(W / 2, 0);
+  ctx.lineTo(W / 2, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawPaddle(p, isPlayer) {
+  const radius = 7;
+
+  // glow
+  const glowColor = isPlayer ? 'rgba(122,184,255,.45)' : 'rgba(255,122,122,.35)';
+  ctx.shadowColor  = glowColor;
+  ctx.shadowBlur   = 18;
+
+  // paddle body
+  ctx.fillStyle = isPlayer ? '#3a7fc1' : '#c13a3a';
+  roundRect(ctx, p.x, p.y, PADDLE_W, PADDLE_H, radius);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // avatar clip on player paddle
+  if (isPlayer && avatarImg) {
+    const av = 54;          // avatar circle diameter
+    const cx = p.x + PADDLE_W / 2;
+    const cy = p.y + PADDLE_H / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, av / 2 + 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a3a5c';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, av / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(avatarImg, cx - av/2, cy - av/2, av, av);
+    ctx.restore();
+
+    // ring
+    ctx.strokeStyle = '#7ab8ff';
+    ctx.lineWidth   = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, av / 2 + 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // AI paddle – robot face (when no avatar on player, just for fun)
+  if (!isPlayer) {
+    const cx = p.x + PADDLE_W / 2;
+    const cy = p.y + PADDLE_H / 2;
+    ctx.fillStyle = '#ffaaaa';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🤖', cx, cy);
+  }
+}
+
+function drawBall() {
+  // trail
+  ball.trail.forEach((pt, i) => {
+    const alpha = (i / ball.trail.length) * 0.4;
+    const r     = BALL_R * (i / ball.trail.length) * 0.8;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,230,255,${alpha})`;
+    ctx.fill();
+  });
+
+  // glow
+  ctx.shadowColor = 'rgba(200,230,255,.9)';
+  ctx.shadowBlur  = 20;
+  ctx.fillStyle   = '#ddeeff';
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+/* ───────── game loop ───────── */
+let raf = null;
+
+function loop() {
+  if (!running) return;
+
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+
+  updatePlayer();
+  updateAI();
+  updateBall();
+
+  drawPaddle(paddle.l, true);
+  drawPaddle(paddle.r, false);
+  drawBall();
+
+  raf = requestAnimationFrame(loop);
+}
+
+/* ───────── start / end ───────── */
+function startGame() {
+  overlay.style.display = 'none';
+  winMsg.classList.remove('show');
+  scores = { l: 0, r: 0 };
+  slEl.textContent = '0';
+  srEl.textContent = '0';
+  paddle.l.y = H/2 - PADDLE_H/2;
+  paddle.r.y = H/2 - PADDLE_H/2;
+  ball = makeBall();
+  running = true;
+  loop();
+}
+
+function endGame(winner) {
+  running = false;
+  cancelAnimationFrame(raf);
+  winMsg.classList.remove('you', 'ai');
+  winMsg.classList.add('show', winner);
+  winText.textContent = winner === 'you' ? '🎉 You Win!' : '🤖 AI Wins!';
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', startGame);
+
+/* initial render so canvas isn't blank */
+ctx.clearRect(0, 0, W, H);
+drawBackground();
+drawPaddle(paddle.l, true);
+drawPaddle(paddle.r, false);
+</script>
+</body>
+</html>
